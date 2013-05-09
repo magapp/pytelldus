@@ -17,55 +17,6 @@ TELLSTICK_DOWN = 256
 
 SUPPORTED_METHODS = TELLSTICK_TURNON | TELLSTICK_TURNOFF | TELLSTICK_BELL | TELLSTICK_DIM | TELLSTICK_UP | TELLSTICK_DOWN;
 
-def printUsage():
-    print("Usage: %s [ options ]" % sys.argv[0])
-    print("")
-    print("Options:")
-    print("         -[lnfdbvh] [ --list ] [ --help ]")
-    print("                      [ --on device ] [ --off device ] [ --bell device ]")
-    print("                      [ --dimlevel level --dim device ]")
-    print("                      [ --up device --down device ]")
-    print("")
-    print("       --list (-l short option)")
-    print("             List currently configured devices.")
-    print("")
-    print("       --help (-h short option)")
-    print("             Shows this screen.")
-    print("")
-    print("       --on device (-n short option)")
-    print("             Turns on device. 'device' must be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("")
-    print("       --off device (-f short option)")
-    print("             Turns off device. 'device' must be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("")
-    print("       --dim device (-d short option)")
-    print("             Dims device. 'device' must be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("             Note: The dimlevel parameter must be set before using this option.")
-    print("")
-    print("       --dimlevel level (-v short option)")
-    print("             Set dim level. 'level' should an integer, 0-255.")
-    print("             Note: This parameter must be set before using dim.")
-    print("")
-    print("       --bell device (-b short option)")
-    print("             Sends bell command to devices supporting this. 'device' must")
-    print("             be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("")
-    print("       --up device")
-    print("             Sends up command to devices supporting this. 'device' must")
-    print("             be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("")
-    print("       --down device")
-    print("             Sends down command to devices supporting this. 'device' must")
-    print("             be an integer of the device-id")
-    print("             Device-id and name is outputed with the --list option")
-    print("")
-    print("Report bugs to <info.tech@telldus.se>")
-
 def listDevices():
     response = doRequest('devices/list', {'supportedMethods': SUPPORTED_METHODS})
     print("Number of devices: %i" % len(response['device']));
@@ -190,51 +141,48 @@ def saveConfig():
         pass
     config.write()
 
-def main(argv):
-    global config
-    if ('token' not in config or config['token'] == ''):
-        authenticate()
-        return
-    try:
-        opts, args = getopt.getopt(argv, "ln:f:d:b:v:h", ["list", "on=", "off=", "dim=", "bell=", "dimlevel=", "up=", "down=", "help"])
-    except getopt.GetoptError:
-        printUsage()
-        sys.exit(2)
-
-    dimlevel = -1
-
-    for opt, arg in opts:
-        if opt in ("-h", "--help"):
-            printUsage()
-
-        elif opt in ("-l", "--list"):
-            listDevices()
-
-        elif opt in ("-n", "--on"):
-            doMethod(arg, TELLSTICK_TURNON)
-
-        elif opt in ("-f", "--off"):
-            doMethod(arg, TELLSTICK_TURNOFF)
-
-        elif opt in ("-b", "--bell"):
-            doMethod(arg, TELLSTICK_BELL)
-
-        elif opt in ("-d", "--dim"):
-            if (dimlevel < 0):
-                print("Dimlevel must be set with --dimlevel before --dim")
-            else:
-                doMethod(arg, TELLSTICK_DIM, dimlevel)
-
-        elif opt in ("-v", "--dimlevel"):
-            dimlevel = arg
-
-        elif opt in ("--up"):
-            doMethod(arg, TELLSTICK_UP)
-
-        elif opt in ("--down"):
-            doMethod(arg, TELLSTICK_DOWN)
-
 
 if __name__ == "__main__":
+    import optparse
+    parser = optparse.OptionParser()
+    parser.add_option("-l", "--list", action="store_true", help="List configured devices.")
+    parser.add_option("-n", "--on", metavar="DEVICE_ID", help="Turn on device with id DEVICE_ID.")
+    parser.add_option("-f", "--off", metavar="DEVICE_ID", help="Turn off device with id DEVICE_ID.")
+    parser.add_option("-d", "--dim", metavar="DEVICE_ID", help="Dim device with id DEVICE_ID.  Used in combination with --dimlevel.")
+    parser.add_option("-L", "--dimlevel", metavar="LEVEL", help="Set dim level. LEVEL is an integer between 0 and 255. Used in combination with --dim.")
+    parser.add_option("--bell", metavar="DEVICE_ID", help="Sends bell command to device with id DEVICE_ID, if supported by the device.")
+    parser.add_option("--up", metavar="DEVICE_ID", help="Sends up command to device with id DEVICE_ID, if supported by device.")
+    parser.add_option("--down", metavar="DEVICE_ID", help="Sends down command to device with id DEVICE_ID, if supported by device.")
+    parser.add_option("--public-key", help="Set the API public key.")
+    parser.add_option("--private-key", help="Set the API public key.")
+
+    (options, args) = parser.parse_args()
+    PUBLIC_KEY = options.public_key
+    PRIVATE_KEY = options.private_key
+
+
+    global config
     config = ConfigObj(os.environ['HOME'] + '/.config/Telldus/tdtool.conf')
-    main(sys.argv[1:])
+
+    if ('token' not in config or config['token'] == ''):
+        authenticate()
+        sys.exit(1)
+
+    if options.list:
+        listDevices()
+    elif options.on:
+        doMethod(options.on, TELLSTICK_TURNON)
+    elif options.off:
+        doMethod(options.off, TELLSTICK_TURNOFF)
+    elif options.bell:
+        doMethod(options.bell, TELLSTICK_BELL)
+    elif options.dim:
+        if not options.dimlevel:
+            print >> sys.stderr, "Dim level must be specified with --dimlevel with --dim"
+            sys.exit(1)
+        doMethod(options.dim, TELLSTICK_DIM, options.dimlevel)
+    elif options.up:
+        doMethod(options.up, TELLSTICK_UP)
+    elif options.down:
+        doMethod(options.down, TELLSTICK_DOWN)
+
